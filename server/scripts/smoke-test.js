@@ -8,20 +8,15 @@ async function main() {
   process.env.MONGODB_URI = mongod.getUri();
   process.env.JWT_SECRET = 'test_secret';
   process.env.CLIENT_ORIGIN = 'http://localhost:5173';
+  process.env.ADMIN_EMAIL = 'admin@trottk.com';
+  process.env.ADMIN_PASSWORD = 'Secret123!';
+  process.env.SEED_SECRET = 'seed_secret';
 
   const connectDB = require('../config/db');
   const app = require('../app');
   const User = require('../models/User');
 
   await connectDB();
-
-  // Seed an admin directly.
-  await User.create({
-    name: 'Test Admin',
-    email: 'admin@trottk.com',
-    passwordHash: await bcrypt.hash('Secret123!', 10),
-    role: 'admin',
-  });
 
   const server = app.listen(0);
   const base = `http://localhost:${server.address().port}/api`;
@@ -43,8 +38,16 @@ async function main() {
   };
 
   try {
+    console.log('SEED');
+    let r = await req('POST', '/auth/seed');
+    assert(r.status === 201, 'seeds admin from env when none exists');
+    r = await req('POST', '/auth/seed');
+    assert(r.status === 409, 'refuses re-seed without secret once admin exists');
+    r = await req('POST', '/auth/seed', { secret: 'seed_secret' });
+    assert(r.status === 200, 'allows password reset with valid SEED_SECRET');
+
     console.log('AUTH');
-    let r = await req('POST', '/auth/login', { email: 'admin@trottk.com', password: 'wrong' });
+    r = await req('POST', '/auth/login', { email: 'admin@trottk.com', password: 'wrong' });
     assert(r.status === 401, 'rejects bad password');
     r = await req('POST', '/auth/login', { email: 'admin@trottk.com', password: 'Secret123!' });
     assert(r.status === 200 && r.json.token, 'logs in with correct password');

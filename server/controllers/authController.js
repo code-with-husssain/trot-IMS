@@ -34,3 +34,32 @@ exports.me = async (req, res) => {
   if (!user) return res.status(404).json({ message: 'User not found' });
   res.json({ user });
 };
+
+// One-time bootstrap: create the admin from env vars without running a local script.
+// - If NO admin exists yet, it seeds freely (idempotent first-run bootstrap).
+// - Once an admin exists, the endpoint is locked unless the caller provides the
+//   correct `secret` matching SEED_SECRET (used to force a password reset).
+exports.seed = async (req, res) => {
+  const email = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  const password = process.env.ADMIN_PASSWORD || '';
+  const name = process.env.ADMIN_NAME || 'Trot TK Admin';
+  if (!email || !password) {
+    return res.status(500).json({ message: 'ADMIN_EMAIL and ADMIN_PASSWORD must be set in env' });
+  }
+
+  const existing = await User.findOne({ email });
+  if (existing) {
+    const provided = (req.body && req.body.secret) || req.query.secret;
+    if (!process.env.SEED_SECRET || provided !== process.env.SEED_SECRET) {
+      return res.status(409).json({ message: 'Admin already exists. Provide a valid secret to reset.' });
+    }
+    existing.name = name;
+    existing.passwordHash = await bcrypt.hash(password, 10);
+    await existing.save();
+    return res.json({ message: 'Admin password reset', email });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await User.create({ name, email, passwordHash, role: 'admin' });
+  res.status(201).json({ message: 'Admin created', email });
+};

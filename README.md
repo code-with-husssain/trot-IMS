@@ -68,6 +68,7 @@ The Vite dev server proxies `/api` to `http://localhost:5000`, so just open
 | Method | Endpoint                     | Purpose                                  |
 | ------ | ---------------------------- | ---------------------------------------- |
 | POST   | `/api/auth/login`            | Admin login → JWT                        |
+| POST   | `/api/auth/seed`             | Bootstrap admin from env (no local run)  |
 | GET    | `/api/auth/me`               | Current admin                            |
 | GET/POST/PUT/DELETE | `/api/clients`    | Client CRUD                              |
 | GET    | `/api/clients/:id`           | Client + their invoices                  |
@@ -82,9 +83,13 @@ The Vite dev server proxies `/api` to `http://localhost:5000`, so just open
    (static) and deploys `server/api/index.js` as a serverless function under `/api/*`.
 3. Add the same environment variables (`MONGODB_URI`, `JWT_SECRET`, `ADMIN_*`) in
    **Project → Settings → Environment Variables**. Set `CLIENT_ORIGIN` to your Vercel URL.
-4. Deploy. After the first deploy, seed the admin once — either run `npm run seed` locally
-   pointed at the same `MONGODB_URI`, or temporarily run the seed in any environment with the
-   production connection string.
+4. Deploy. After the first deploy, **seed the admin** by sending one request (no local run):
+   ```bash
+   curl -X POST https://<your-app>.vercel.app/api/auth/seed
+   ```
+   This creates the admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`. It only works while no admin
+   exists; afterwards it's locked unless you pass `{"secret":"<SEED_SECRET>"}` to reset the password.
+   (You can still use `npm run seed` locally against the same `MONGODB_URI` instead.)
 
 ## Notes
 
