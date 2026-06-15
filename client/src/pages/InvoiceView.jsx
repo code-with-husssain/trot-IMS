@@ -5,6 +5,7 @@ import jsPDF from 'jspdf';
 import api from '../api/axios';
 import { money, dateLong, STATUS_OPTIONS } from '../lib/format';
 import StatusBadge from '../components/StatusBadge';
+import Logo from '../components/Logo';
 
 export default function InvoiceView() {
   const { id } = useParams();
@@ -86,9 +87,7 @@ export default function InvoiceView() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-md bg-black text-lg font-extrabold text-white">
-              trot.
-            </div>
+            <Logo size={64} />
             <div>
               <div className="text-xl font-bold">{co.name || 'Trot Tk'}</div>
               <div className="max-w-xs text-xs text-gray-500">{co.tagline}</div>
