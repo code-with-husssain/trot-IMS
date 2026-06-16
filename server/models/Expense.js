@@ -1,7 +1,19 @@
 const mongoose = require('mongoose');
 
 // Preset categories; users may also enter a custom string.
-const CATEGORIES = ['Salaries', 'Software/Tools', 'Office/Rent', 'Marketing', 'Taxes', 'Misc'];
+const CATEGORIES = [
+  'Salaries',
+  'Software/Tools',
+  'Hardware/Equipment',
+  'Office/Rent',
+  'Utilities',
+  'Bills',
+  'Subscriptions',
+  'Marketing',
+  'Travel',
+  'Taxes',
+  'Misc',
+];
 
 const expenseSchema = new mongoose.Schema(
   {

@@ -21,8 +21,13 @@ export const STATUS_OPTIONS = [
 export const EXPENSE_CATEGORIES = [
   'Salaries',
   'Software/Tools',
+  'Hardware/Equipment',
   'Office/Rent',
+  'Utilities',
+  'Bills',
+  'Subscriptions',
   'Marketing',
+  'Travel',
   'Taxes',
   'Misc',
 ];
