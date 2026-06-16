@@ -7,7 +7,11 @@ client & year filters.
 - **Auth:** single seeded admin login (JWT). Clients do not log in.
 - **Invoices:** generated in the Trot TK format, with a changeable status workflow
   (`pending → approved → received → paid`, plus `overdue` / `cancelled`) and **PDF download**.
-- **Dashboard:** revenue KPIs, monthly-revenue chart, top clients, filterable by client & year.
+- **Expenses:** track money-out per month — one-off entries plus recurring monthly expenses
+  (salaries, rent, tools) with preset + custom categories.
+- **Dashboard:** monthly **cash-flow** view — Invoiced / Received / Outstanding / Expenses / **Net**
+  KPIs, an income-vs-expenses chart with a net line, expense-by-category, top clients; filterable
+  by client & year.
 - **Stack:** MongoDB Atlas · Express · React (Vite) · Node · Tailwind CSS.
 - **Primary color:** `rgb(255, 131, 97)` (`#FF8361`).
 
@@ -74,7 +78,10 @@ The Vite dev server proxies `/api` to `http://localhost:5000`, so just open
 | GET    | `/api/clients/:id`           | Client + their invoices                  |
 | GET/POST/PUT/DELETE | `/api/invoices`   | Invoice CRUD (totals computed server-side) |
 | PATCH  | `/api/invoices/:id/status`   | Change invoice status                    |
-| GET    | `/api/dashboard?clientId=&year=` | Aggregated metrics                  |
+| GET/POST/PUT/DELETE | `/api/expenses`   | Expense CRUD (one-off + recurring)       |
+| GET    | `/api/expenses?year=&month=&category=` | Month's expenses (recurring expanded) |
+| GET    | `/api/expenses/categories`   | Preset + custom categories               |
+| GET    | `/api/dashboard?clientId=&year=` | Cash-flow metrics (income, expenses, net) |
 
 ## Deployment (Vercel)
 

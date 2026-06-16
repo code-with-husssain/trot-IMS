@@ -1,53 +1,89 @@
 const mongoose = require('mongoose');
 const Invoice = require('../models/Invoice');
+const Expense = require('../models/Expense');
+const { round2, recurringActiveInMonth } = require('../utils/expenseUtils');
 
 const PAID_STATUSES = ['paid', 'received'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 exports.metrics = async (req, res) => {
   const { clientId, year } = req.query;
+  // Cash-flow is year-scoped; default to the current year when no filter is set.
+  const scopeYear = year ? Number(year) : new Date().getFullYear();
+
   const match = {};
   if (clientId) match.client = new mongoose.Types.ObjectId(clientId);
-  if (year) {
-    const y = Number(year);
-    match.issueDate = { $gte: new Date(y, 0, 1), $lt: new Date(y + 1, 0, 1) };
-  }
+  if (year) match.issueDate = { $gte: new Date(scopeYear, 0, 1), $lt: new Date(scopeYear + 1, 0, 1) };
 
+  // ---- Invoice totals (respect client + year filters) ----
   const [totals] = await Invoice.aggregate([
     { $match: match },
     {
       $group: {
         _id: null,
-        totalRevenue: { $sum: '$total' },
+        invoiced: { $sum: '$total' },
         invoiceCount: { $sum: 1 },
-        paid: {
-          $sum: { $cond: [{ $in: ['$status', PAID_STATUSES] }, '$total', 0] },
-        },
-        outstanding: {
-          $sum: { $cond: [{ $in: ['$status', PAID_STATUSES] }, 0, '$total'] },
-        },
+        received: { $sum: { $cond: [{ $in: ['$status', PAID_STATUSES] }, '$total', 0] } },
+        outstanding: { $sum: { $cond: [{ $in: ['$status', PAID_STATUSES] }, 0, '$total'] } },
       },
     },
   ]);
 
-  // Revenue per month (1-12) for the chart.
-  const monthlyRaw = await Invoice.aggregate([
+  // ---- Per-month invoiced + received ----
+  const monthlyInvoiceRaw = await Invoice.aggregate([
     { $match: match },
     {
       $group: {
         _id: { $month: '$issueDate' },
-        revenue: { $sum: '$total' },
-        count: { $sum: 1 },
+        invoiced: { $sum: '$total' },
+        received: { $sum: { $cond: [{ $in: ['$status', PAID_STATUSES] }, '$total', 0] } },
       },
     },
   ]);
-  const monthMap = new Map(monthlyRaw.map((m) => [m._id, m]));
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const monthlyRevenue = months.map((label, i) => {
-    const m = monthMap.get(i + 1);
-    return { month: label, revenue: m ? Math.round(m.revenue * 100) / 100 : 0, count: m ? m.count : 0 };
+  const invMonthMap = new Map(monthlyInvoiceRaw.map((m) => [m._id, m]));
+
+  // ---- Expenses for the scoped year (one-offs by month + recurring expanded) ----
+  const expenseMonthly = Array(12).fill(0);
+  const categoryTotals = {};
+  const addCat = (cat, amt) => { categoryTotals[cat || 'Misc'] = (categoryTotals[cat || 'Misc'] || 0) + amt; };
+
+  const oneOffs = await Expense.find({
+    recurring: false,
+    date: { $gte: new Date(scopeYear, 0, 1), $lt: new Date(scopeYear + 1, 0, 1) },
+  });
+  oneOffs.forEach((e) => {
+    const m = new Date(e.date).getMonth();
+    expenseMonthly[m] += e.amount;
+    addCat(e.category, e.amount);
   });
 
-  // Status breakdown.
+  const recurring = await Expense.find({ recurring: true });
+  for (let m = 0; m < 12; m++) {
+    recurring.forEach((r) => {
+      if (recurringActiveInMonth(r, scopeYear, m)) {
+        expenseMonthly[m] += r.amount;
+        addCat(r.category, r.amount);
+      }
+    });
+  }
+
+  // ---- Combined monthly series ----
+  const monthly = MONTHS.map((label, i) => {
+    const inv = invMonthMap.get(i + 1);
+    const invoiced = round2(inv ? inv.invoiced : 0);
+    const received = round2(inv ? inv.received : 0);
+    const expenses = round2(expenseMonthly[i]);
+    return { month: label, invoiced, received, expenses, net: round2(received - expenses) };
+  });
+
+  const totalExpenses = round2(expenseMonthly.reduce((a, b) => a + b, 0));
+  const received = round2(totals ? totals.received : 0);
+
+  const expenseByCategory = Object.entries(categoryTotals)
+    .map(([category, total]) => ({ category, total: round2(total) }))
+    .sort((a, b) => b.total - a.total);
+
+  // ---- Status breakdown ----
   const statusBreakdownRaw = await Invoice.aggregate([
     { $match: match },
     { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$total' } } },
@@ -55,10 +91,10 @@ exports.metrics = async (req, res) => {
   const statusBreakdown = statusBreakdownRaw.map((s) => ({
     status: s._id,
     count: s.count,
-    total: Math.round(s.total * 100) / 100,
+    total: round2(s.total),
   }));
 
-  // Top clients by billed amount.
+  // ---- Top clients ----
   const topClients = await Invoice.aggregate([
     { $match: match },
     { $group: { _id: '$client', totalBilled: { $sum: '$total' }, invoiceCount: { $sum: 1 } } },
@@ -78,21 +114,29 @@ exports.metrics = async (req, res) => {
     },
   ]);
 
-  // Distinct years for the year filter dropdown.
-  const yearsRaw = await Invoice.aggregate([
+  // ---- Years for the filter dropdown (invoices + expenses) ----
+  const invYears = await Invoice.aggregate([
     { $group: { _id: { $year: '$issueDate' } } },
-    { $sort: { _id: -1 } },
   ]);
-  const years = yearsRaw.map((y) => y._id).filter(Boolean);
+  const expYears = await Expense.aggregate([
+    { $group: { _id: { $year: { $ifNull: ['$date', '$startDate'] } } } },
+  ]);
+  const years = Array.from(
+    new Set([...invYears, ...expYears].map((y) => y._id).filter(Boolean))
+  ).sort((a, b) => b - a);
 
   res.json({
+    scopeYear,
     summary: {
-      totalRevenue: totals ? Math.round(totals.totalRevenue * 100) / 100 : 0,
-      paid: totals ? Math.round(totals.paid * 100) / 100 : 0,
-      outstanding: totals ? Math.round(totals.outstanding * 100) / 100 : 0,
+      invoiced: round2(totals ? totals.invoiced : 0),
+      received,
+      outstanding: round2(totals ? totals.outstanding : 0),
       invoiceCount: totals ? totals.invoiceCount : 0,
+      expenses: totalExpenses,
+      net: round2(received - totalExpenses),
     },
-    monthlyRevenue,
+    monthly,
+    expenseByCategory,
     statusBreakdown,
     topClients,
     years,

@@ -6,6 +6,7 @@ const nav = [
   { to: '/', label: 'Dashboard', end: true, icon: '◧' },
   { to: '/clients', label: 'Clients', icon: '◍' },
   { to: '/invoices', label: 'Invoices', icon: '▤' },
+  { to: '/expenses', label: 'Expenses', icon: '▥' },
 ];
 
 export default function AppLayout() {

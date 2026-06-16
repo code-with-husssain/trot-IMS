@@ -18,6 +18,20 @@ export const STATUS_OPTIONS = [
   'cancelled',
 ];
 
+export const EXPENSE_CATEGORIES = [
+  'Salaries',
+  'Software/Tools',
+  'Office/Rent',
+  'Marketing',
+  'Taxes',
+  'Misc',
+];
+
+export const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
 export const statusClasses = {
   pending: 'bg-amber-100 text-amber-700',
   approved: 'bg-blue-100 text-blue-700',

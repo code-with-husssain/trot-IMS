@@ -106,12 +106,40 @@ async function main() {
     console.log('DASHBOARD');
     r = await req('GET', '/dashboard?year=2026', null, token);
     assert(r.json.summary.invoiceCount === 1, 'year filter narrows to 2026 invoice');
-    assert(r.json.summary.paid === 1005.8, 'paid total reflects paid invoice');
+    assert(r.json.summary.received === 1005.8, 'received total reflects paid invoice');
     r = await req('GET', '/dashboard', null, token);
     assert(r.json.summary.invoiceCount === 2, 'unfiltered dashboard counts all invoices');
     assert(r.json.summary.outstanding === 500, 'outstanding = unpaid invoice total (500)');
-    assert(Array.isArray(r.json.monthlyRevenue) && r.json.monthlyRevenue.length === 12, 'monthly series has 12 months');
+    assert(Array.isArray(r.json.monthly) && r.json.monthly.length === 12, 'monthly series has 12 months');
     assert(r.json.topClients.length === 1, 'top clients populated');
+
+    console.log('EXPENSES');
+    r = await req('POST', '/expenses', {
+      description: 'AWS hosting', amount: 200, category: 'Software/Tools', date: '2026-02-10',
+    }, token);
+    assert(r.status === 201, 'creates a one-off expense');
+    r = await req('POST', '/expenses', {
+      description: 'Salaries', amount: 100, category: 'Salaries',
+      recurring: true, startDate: '2026-01-01', endDate: '2026-03-31',
+    }, token);
+    assert(r.status === 201, 'creates a recurring expense (Jan–Mar)');
+    r = await req('POST', '/expenses', { description: 'No amount' }, token);
+    assert(r.status === 400, 'rejects expense without amount');
+
+    r = await req('GET', '/expenses?year=2026&month=2', null, token);
+    assert(r.json.total === 300, 'Feb list = one-off 200 + recurring 100 (got ' + r.json.total + ')');
+    assert(r.json.expenses.some((e) => e.isRecurring), 'Feb list includes the recurring entry');
+    r = await req('GET', '/expenses?year=2026&month=6', null, token);
+    assert(r.json.total === 0, 'June has no expenses (recurring ended in March)');
+
+    console.log('CASH FLOW');
+    r = await req('GET', '/dashboard?year=2026', null, token);
+    assert(r.json.summary.expenses === 500, 'year expenses = 200 one-off + 100×3 recurring (got ' + r.json.summary.expenses + ')');
+    assert(r.json.summary.net === 505.8, 'net = received 1005.8 − expenses 500 (got ' + r.json.summary.net + ')');
+    const feb = r.json.monthly.find((m) => m.month === 'Feb');
+    assert(feb.expenses === 300, 'Feb monthly expenses = 300');
+    const monthsWithExp = r.json.monthly.filter((m) => m.expenses > 0).length;
+    assert(monthsWithExp === 3, 'recurring (3-month window) hits exactly 3 months (got ' + monthsWithExp + ')');
 
     console.log('\nALL SMOKE TESTS PASSED ✅');
   } finally {

@@ -8,6 +8,7 @@ import ClientDetail from './pages/ClientDetail';
 import Invoices from './pages/Invoices';
 import InvoiceForm from './pages/InvoiceForm';
 import InvoiceView from './pages/InvoiceView';
+import Expenses from './pages/Expenses';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/invoices/new" element={<InvoiceForm />} />
         <Route path="/invoices/:id" element={<InvoiceView />} />
+        <Route path="/expenses" element={<Expenses />} />
       </Route>
     </Routes>
   );
